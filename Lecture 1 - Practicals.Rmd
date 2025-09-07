@@ -1,0 +1,224 @@
+---
+title: "Lecture 1 - Practicals"
+author: "Adam Darwich"
+date: "2025-08-29"
+output: html_document
+---
+
+## EXERCISE 1: THINKING ABOUT DISTRIBUTIONS
+```{r}
+# We start out by installing the course R package
+install.packages("devtools")
+library(devtools)
+
+install_github("adamdarwichkth/CM2018rpackage", force = TRUE)
+
+# note: we might have to repeat the above multiple times throughout the course
+# as the I will keep on adding functions to the package.
+
+# load the course library
+library(CM2018rpackage)
+
+# loading "a_clinical_dataset":
+data <- a_clinical_dataset()
+
+# a first look at the data
+head(data)
+summary(data)
+
+## visualising the data:
+#  histogram
+hist(data, xlab = "X", ylab = "Frequency")
+#  boxplot
+boxplot(data, ylab = "X")
+#  q-q plot
+library(car)
+qqPlot(data, xlab = "normal quantiles", ylab ="X")
+
+#  testing for normality using Shapiro-Wilk
+shapiro.test(data)
+
+### the same process can be repeated for the other functions:
+# another_clinical_dataset
+data2 <- another_clinical_dataset()
+# a first look at the data
+head(data2)
+summary(data2)
+
+## visualising the data:
+#  histogram
+hist(data2, xlab = "X", ylab = "Frequency")
+#  boxplot
+boxplot(data2, ylab = "X")
+#  q-q plot
+library(car)
+qqPlot(data2, xlab = "normal quantiles", ylab ="X")
+
+#  testing for normality using Shapiro-Wilk
+shapiro.test(data2)
+
+##### And, for the third function:
+# yet_another_clinical_dataset
+data3 <- yet_another_clinical_dataset()
+# a first look at the data
+head(data3)
+summary(data3)
+
+## visualising the data:
+#  histogram
+hist(data3, xlab = "X", ylab = "Frequency")
+#  boxplot
+boxplot(data3, ylab = "X")
+#  q-q plot
+library(car)
+qqPlot(data3, xlab = "normal quantiles", ylab ="X")
+
+#  testing for normality using Shapiro-Wilk
+shapiro.test(data3)
+
+```
+
+Conclusion: 
+What I rerun these scripts a few times, data is sometimes indicated
+to be more or less normal. Perhaps I could say that the data in yet_another_clinical_dataset()
+looks the "most normal", while a_clinical_data() appears to be the least "normal looking".
+Either way I can get statistical significant outcomes for the Shapiro Wilk test for all of these
+three datasets. 
+
+In truth we are pulling data from normal distributions for another_clinical_dataset() and 
+for yet_another_clinical_dataset(). For a_clinical_dataset() data originates from a log-normal
+distribution. 
+
+So, a few thinks we can conclude:
+- when we assume normality, we do this as an approximation that the data in theory conforms
+to a normal distribution. 
+- it is not completely straightforward to assess this (e.g., statistically) so these assessments
+might not always be super reliable or valuable. 
+- But, does this really matter for hypothesis testing? We'll take a closer look in Exercise 3.
+
+
+
+## EXERCISE 2: ON THE P-VALUE AND CONFIDENCE INTERVALS
+```{r}
+## GENERATE NORMAL DATA
+data_x1 <- rnorm(50, 5, 3)
+data_x2 <- rnorm(50, 6.5, 3)
+
+## P-VALUE
+t_res <- t.test(data_x1, data_x2)
+
+## CONFIDENCE INTERVAL
+ci_res <- t_res$conf.int
+
+## DO IT MULTIPLE TIMES IN A LOOP
+n_iter <- 20
+p_val <- c()
+ci_05 <- c()
+ci_50 <- c()
+ci_95 <- c()
+
+for(i in 1:n_iter){
+  data_x1 <- rnorm(50, 5, 3)
+  data_x2 <- rnorm(50, 6.5, 3)
+  
+  t_res <- t.test(data_x1, data_x2)
+  
+  p_val[i] <- t_res$p.value
+  ci_05[i] <- t_res$conf.int[1]
+  ci_50[i] <- t_res$estimate[1] - t_res$estimate[2] # diff(t_res$estimate)
+  ci_95[i] <- t_res$conf.int[2]
+
+}
+
+# PLOT RESULTS
+# p-values
+x_iter <- seq(1, n_iter)
+
+plot(p_val, x_iter, xlab = "p-value", ylab = "iteration")
+abline(v = 0.05)
+
+# confidence intervals
+ci_dat <- data.frame(ITER = x_iter, CI05 = ci_05, CI50 = ci_50, CI95 = ci_95)
+
+library(ggplot2)
+ggplot(ci_dat, aes(x = CI50, y = ITER)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(xmax = CI95, xmin = CI05)) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  xlab("95% confidence interval") +
+  ylab("Iteration")
+
+```
+Conclusions:
+So we have the two definitions - 
+P-value: is the probability of obtaining the test statistic (t) or a more extreme value if the null hypothesis is true (Fife & Rogers 2021). P-value is a measure of the discrepancy of the fit of a model or null hypothesis H0 to data y (Gelman 2013).
+
+Confidence intervals: Upon repetition of an experiment the true population mean would fall within the 95% confidence interval of the mean 95% of the times.
+
+Upon repetition, we clearly see how neither p-values or confidence intervals are the be-it-all in describing differences
+in data. It is worth to nuance the discussion on significance levels, for example by also considering the effect size and
+estimates of effects and their clinical relevance.
+
+## EXERCISE 3: EXPLORING THE ROBUSTNESS OF NORMAL PARAMETRIC T-TESTS
+```{r}
+
+set.seed(34567)
+
+## POWER
+# log-normal distribution
+x_contr <- 0.4
+sd_contr <- 0.49
+n_control <- 15
+
+x_exp <- 0.95
+sd_exp <- 0.51
+n_experiment <- 15
+
+pval_wmw <- replicate(10000, {
+  y_contr <- rlnorm(n_control, x_contr, sd_contr)
+  y_exp <- rlnorm(n_experiment, x_exp, sd_exp)
+  wilcox.test(y_contr, y_exp)$p.value
+})
+mean(pval_wmw < 0.05)
+
+pval_ttst <- replicate(10000, {
+  y_contr <- rlnorm(n_control, x_contr, sd_contr)
+  y_exp <- rlnorm(n_experiment, x_exp, sd_exp)
+  t.test(y_contr,y_exp, alternative = "two.sided", paired = FALSE, var.equal = FALSE)$p.value
+})
+mean(pval_ttst < 0.05)
+
+## SIGNIFICANCE LEVEL
+set.seed(34567)
+
+n_repeat <- 100
+n_samples <- 6
+gamma_y <- 1
+# for example: y_dat <- rexp(n_samples, rate = 1)
+
+# calculate the t-ratio of 100 replicates
+t_y <- replicate(n_repeat, {
+  y_dat <- rexp(n_samples, rate = gamma_y)
+  x_y <- mean(y_dat)
+  sd_y <- sd(y_dat)
+  t_y <-(x_y - gamma_y)/(sd_y/sqrt(n_samples))
+})
+
+# Plot the histogram and overlay the theoretical pdf
+df_y <- n_samples - 1
+x_tdist <- seq(-4,4,0.1)
+tdist_pdf <- dt(x_tdist, df_y)
+hist(t_y, freq = FALSE, xlab = "t ratio (n=6)", ylab = "Density", main = "", xlim = c(-8,8), ylim = c(0,0.5))
+lines(x_tdist, tdist_pdf)
+
+
+
+```
+
+Conclusion:
+I really like these couple of simulation experiments as they clearly show the impact of violating distributional
+assumptions on power and significance. It turns out that the t-test is quite robust. And, the t distribution is relatively 
+insensitive as long as n is not too small and the data is not too skewed.
+
+
+

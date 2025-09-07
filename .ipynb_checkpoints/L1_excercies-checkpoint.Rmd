@@ -1,0 +1,6 @@
+```{r}
+library(devtools)
+library(CM2018rpackage)
+
+
+```

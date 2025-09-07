@@ -1,0 +1,8 @@
+Setup instructions for R with Conda
+
+1. mamba create -n r -c conda-forge r-base -y
+2. conda activate R
+3. conda install r-devtools
+4. install.packages('IRkernel')
+5. IRkernel::installspec()  # to register the kernel in the current R installation
+
