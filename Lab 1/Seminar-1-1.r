@@ -43,10 +43,16 @@ p_NFL_PTAU181 <- ggplot(df_plot, aes(x = PTAU181, y = NFL)) +
   labs(title = "Scatter plot of NfL vs p-tau181", x = "p-tau181 (pg/mL)", y = "NfL (pg/mL)") +
   theme_classic()
 
+p_NFL_PTAU181 <- ggplot(df_plot, aes(x = PTAU181, y = NFL)) +
+  geom_point(aes(color = NFL_label), size = 2) +
+  labs(title = "Scatter plot of NfL vs p-tau181", x = "p-tau181 (pg/mL)", y = "NfL (pg/mL)") +
+  theme_classic()
+
 # Display plots
 print(p_NFL)
 print(p_PTAU181)
 print(p_NFL_PTAU181)
+
 
 ggplot(df_plot, aes(x = NFL_label)) +
   geom_boxplot(aes(y = NFL), color = "black", fill = "lightblue") +
@@ -57,6 +63,28 @@ ggplot(df_plot, aes(x = PTAU181_label)) +
   geom_boxplot(aes(y = PTAU181), color = "black", fill = "lightblue") +
   labs(title = "Boxplot of p-tau181 concentrations by group", x = "Group", y = "p-tau181 (pg/mL)") +
   theme_classic()
+
+# Q–Q plot for NFL Group 0
+qqnorm(df_plot$NFL[df_plot$GROUP == 0],
+       main = "Q–Q Plot of NFL (Group 0)")
+qqline(df_plot$NFL[df_plot$GROUP == 0], col = "red")
+
+# Q–Q plot for NFL Group 1
+qqnorm(df_plot$NFL[df_plot$GROUP == 1],
+       main = "Q–Q Plot of NFL (Group 1)")
+qqline(df_plot$NFL[df_plot$GROUP == 1], col = "red")
+
+
+# Q–Q plot for PTAU181 Group 0
+qqnorm(df_plot$PTAU181[df_plot$GROUP == 0],
+       main = "Q–Q Plot of p-tau181 (Group 0)")
+qqline(df_plot$PTAU181[df_plot$GROUP == 0], col = "red")
+
+# Q–Q plot for PTAU181 Group 1
+qqnorm(df_plot$PTAU181[df_plot$GROUP == 1],
+       main = "Q–Q Plot of p-tau181 (Group 1)")
+qqline(df_plot$PTAU181[df_plot$GROUP == 1], col = "red")
+
 
 df_plot
 
@@ -94,10 +122,24 @@ print(t_test_result)
 
 log_PTAU181_1 <- log(df_plot[df_plot$GROUP == 1, ]$PTAU181)
 
+log_PTAU181_0 <- log(df_plot[df_plot$GROUP == 0, ]$PTAU181)
+
+# Q–Q plot for log PTAU181 Group 1
+qqnorm(log_data_PTAU181_1,
+       main = "Q–Q Plot of logtransformed p-tau181 (Group 1)")
+qqline(log_data_PTAU181_1, col = "red")
+
+# Q–Q plot for log PTAU181 Group 0
+qqnorm(log_data_PTAU181_0,
+       main = "Q–Q Plot of logtransformed p-tau181 (Group 0)")
+qqline(log_data_PTAU181_0, col = "red")
+
+
 shapiro.test(log_PTAU181_1)
+shapiro.test(log_PTAU181_0)
 
 # Perform a two-sample t-test
-t_test_result_PTAU181 <- t.test(df_plot[df_plot$GROUP == 0, ]$PTAU181, log_PTAU181_1)
+t_test_result_PTAU181 <- t.test(log_data_PTAU181_0, log_PTAU181_1)
 
 # Print the results
 print(t_test_result_PTAU181)
