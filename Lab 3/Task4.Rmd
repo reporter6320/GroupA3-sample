@@ -1,0 +1,179 @@
+---
+title: "S3T4"
+author: "Group A3"
+date: "2025-11-05"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Step 1: Joining datasets
+
+```{r prep}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tableone)
+library(broom)
+library(ResourceSelection) # Hosmer–Lemeshow test
+library(pROC)
+library(car) # VIF
+library(survival) # time-to-event
+library(cmprsk)
+library(tidyr)
+library(GGally)
+library(scales)
+library(knitr)
+
+data_t3 <- read_csv("Data_T3.csv")
+data_t4 <- read_csv("Data_T4.csv")
+
+treat_group <- data_t3 %>% filter(TreatmentGroup == "Treatment")
+merged <- treat_group %>%
+  left_join(data_t4, by = "ID")
+```
+
+## Step 2: Data exploration
+
+We examined the data, visualized the distribution of categorical data, including Sex and EcoG_PS, and continuous variables, including GFR and Age, by Neutropenia status, and the distribution of Neutropenia Status in categorical data.
+
+```{r visualization, echo=FALSE}
+vars <- c("Age", "Sex", "ECOG_PS", "GFR")
+cont_vars <- c("Age", "GFR")
+cat_vars <- c("Sex", "ECOG_PS")
+
+table1 <- CreateTableOne(vars = vars, strata = "Neutropenia", data = merged, factorVars = cat_vars)
+print(table1, showAllLevels = TRUE)
+
+merged %>%
+  mutate(across(all_of(cat_vars), ~ as.character(.))) %>%
+  pivot_longer(cols = all_of(cat_vars),
+               names_to = "Variable",
+               values_to = "Category") %>%
+  mutate(Category = factor(Category)) %>%
+  ggplot(aes(x = factor(Neutropenia), fill = Category)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~Variable, scales = "free_x") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(y = "Proportion", x = "Neutropenia",
+       title = "Distribution of Sex and ECOG_PS by Neutropenia status") +
+  theme_minimal()
+
+merged %>%
+  pivot_longer(cols = all_of(cont_vars),
+               names_to = "Variable",
+               values_to = "Value") %>%
+  ggplot(aes(x = Value, fill = factor(Neutropenia))) +
+  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
+  facet_wrap(~Variable, scales = "free") +
+  labs(x = "Value", y = "Count",
+       title = "Distribution of Continuous Variables by Neutropenia") +
+  theme_minimal()
+
+merged %>%
+  pivot_longer(cols = all_of(cont_vars),
+               names_to = "Variable",
+               values_to = "Value") %>%
+  ggplot(aes(x = factor(Neutropenia), y = Value, fill = factor(Neutropenia))) +
+  geom_violin(trim = FALSE, alpha = 0.4, color = NA) +
+  geom_boxplot(width = 0.15, color = "black", alpha = 0.7) +
+  facet_wrap(~Variable, scales = "free_y") +
+  labs(x = "Neutropenia (0=No,1=Yes)", y = "Value",
+       title = "Continuous Variables by Neutropenia") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+merged %>%
+  select(all_of(cont_vars), Neutropenia) %>%
+  ggpairs(aes(color = factor(Neutropenia)), progress = FALSE)
+
+merged %>%
+  mutate(across(all_of(cat_vars), ~ as.character(.))) %>%
+  pivot_longer(cols = all_of(cat_vars),
+               names_to = "Variable",
+               values_to = "Category") %>%
+  mutate(Category = factor(Category)) %>%
+  ggplot(aes(x = Category, fill = factor(Neutropenia))) +
+  geom_bar(position = "fill") +
+  facet_wrap(~Variable, scales = "free_x") +
+  labs(y = "Proportion", x = "", title = "Categorical Variables by Neutropenia") +
+  theme_minimal()
+```
+
+Results shows that continuous variables are seemingly in a normal distribution, GRF distribution looks differently in different Neutropenia case, while Age doesn't seem to have significant influence on Neutropenia. Percentage of high-level EcoG_PS is higher in Neutropenia cases, while sex distribute similarly in with and without Neutropenia.
+
+Next, we carry out statistic tests on continuous variables.
+
+```{r examing, echo=FALSE}
+table(merged$Neutropenia, merged$Sex)
+chisq.test(table(merged$Neutropenia, merged$Sex))
+results_list <- list()
+
+table(merged$Neutropenia, merged$ECOG_PS)
+chisq.test(table(merged$Neutropenia, merged$ECOG_PS))
+results_list <- list()
+
+for (v in cont_vars) {
+  
+  group0 <- merged[[v]][merged$Neutropenia == 0]
+  group1 <- merged[[v]][merged$Neutropenia == 1]
+  
+  shapiro0_p <- shapiro.test(group0)$p.value
+  shapiro1_p <- shapiro.test(group1)$p.value
+  
+  if (shapiro0_p > 0.05 & shapiro1_p > 0.05) {
+    test <- t.test(merged[[v]] ~ merged$Neutropenia)
+    test_type <- "t-test"
+  } else {
+    test <- wilcox.test(merged[[v]] ~ merged$Neutropenia)
+    test_type <- "Wilcoxon test"
+  }
+  
+  result_df <- data.frame(
+    Variable = v,
+    Normality_Group0_p = round(shapiro0_p, 4),
+    Normality_Group1_p = round(shapiro1_p, 4),
+    Test = test_type,
+    Statistic = round(test$statistic, 4),
+    p_value = round(test$p.value, 4)
+  )
+  
+  results_list[[v]] <- result_df
+}
+
+final_results <- bind_rows(results_list)
+
+kable(final_results, caption = "Comparison of Continuous Variables by Neutropenia")
+```
+From the results of the Pearson's Chi-squared tests, p-value of sex is 1, showing Neutropenia is statistically independent from Sex. The p-value for test of EcoG is 0.3562, higher than 0.05, which means that Neutropenia is also approximately independent from EcoG.
+
+From Shapiro Tests, both continuous variables fit the normal distribution, which also accord with the histogram. While the p-value of age is higher than 0.05 showing significant difference in age with or without Neutropenia, the p-value of GFR is close to 0, showing no significant difference in GFR between different Neutropenia state. This result does not fit the violin plot and boxplot. The reason might be that the medium is shifting from mean value.
+
+## Step 3: Modeling
+```{r model, echo=FALSE}
+model_logit <- glm(Neutropenia ~ Age + Sex + ECOG_PS + GFR,
+                   data = merged,
+                   family = binomial)
+
+summary(model_logit)
+
+exp_coef <- tidy(model_logit, exponentiate = TRUE, conf.int = TRUE)
+print(exp_coef)
+
+vif(model_logit)
+
+hoslem.test(merged$Neutropenia, fitted(model_logit))
+
+roc_obj <- roc(merged$Neutropenia, fitted(model_logit))
+plot(roc_obj, print.auc = TRUE, main = "ROC Curve for Neutropenia Model")
+```
+We used logistic regression to establish a model for this case. The log-odds and odds-ratio shows that only GFR has a significant influence on Neutropenia state, better GFR leads to lower risk of Neutropenia. VIF value are all close to 1, which means that there are no obvious colinearality problem in this model. To access the performance, we accessed the AUC value, which is 0.749, showing the model is acceptable.
+
+For treatment, it is suggested by this model that renal function can support treatment to a better result.
+
+## Step 4: Future Work
+In the future, maybe we can include factor of time of Neutropenia, to build a time-to-event model.
